@@ -4,22 +4,29 @@
 
 # Import required libraries
 
-import streamlit as st
-import pandas as pd
+import os
 import re
 import string
 import nltk
+import pandas as pd
+import streamlit as st
 
 from nltk.corpus import stopwords
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-# Download stopwords
-nltk.download("stopwords")
+# Download stopwords only if needed
+try:
+    stopwords.words("english")
+except LookupError:
+    nltk.download("stopwords")
 
 stop_words = set(stopwords.words("english"))
 
+# ----------------------------------------------------------
 # Function to clean text
+# ----------------------------------------------------------
+
 def clean_text(text):
 
     if pd.isnull(text):
@@ -35,33 +42,45 @@ def clean_text(text):
 
     return " ".join(words)
 
-# Load dataset
-df = pd.read_csv("tmdb_5000_movies.csv")
 
-# Clean overview column
+# ----------------------------------------------------------
+# Load Dataset
+# ----------------------------------------------------------
+
+file_path = os.path.join(os.path.dirname(__file__), "tmdb_5000_movies.csv")
+df = pd.read_csv(file_path)
+
+# Fill missing values
+df["overview"] = df["overview"].fillna("")
+
+# Clean text
 df["clean_overview"] = df["overview"].apply(clean_text)
 
-# Create TF-IDF matrix
+# TF-IDF
 tfidf = TfidfVectorizer(max_features=5000)
 tfidf_matrix = tfidf.fit_transform(df["clean_overview"])
 
-# Calculate similarity
+# Cosine Similarity
 similarity_matrix = cosine_similarity(tfidf_matrix)
 
-# Streamlit title
-st.title("Movie Recommendation System")
+# ----------------------------------------------------------
+# Streamlit UI
+# ----------------------------------------------------------
 
-# Movie selection
-movie_name = st.selectbox("Select a Movie", df["title"])
+st.title("🎬 Movie Recommendation System")
 
-# Recommendation button
+movie_name = st.selectbox(
+    "Select a Movie",
+    sorted(df["title"].unique())
+)
+
 if st.button("Recommend Movies"):
 
     movie_index = df[df["title"] == movie_name].index[0]
 
     similarity_scores = list(enumerate(similarity_matrix[movie_index]))
 
-    sorted_movies = sorted(
+    similarity_scores = sorted(
         similarity_scores,
         key=lambda x: x[1],
         reverse=True
@@ -71,11 +90,11 @@ if st.button("Recommend Movies"):
 
     count = 0
 
-    for movie in sorted_movies[1:]:
+    for movie in similarity_scores[1:]:
 
         index = movie[0]
 
-        st.write(df.iloc[index]["title"])
+        st.write("✅", df.iloc[index]["title"])
 
         count += 1
 
